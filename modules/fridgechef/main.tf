@@ -1,6 +1,10 @@
-# fridgechef module -- rev module-v1.0.0
+# fridgechef module -- rev module-v1.1.0
 #
-# Deploys one image (by digest) as a local container.
+# Difference from module-v1.0.0:
+#   - docker_container gains restart = "unless-stopped"
+#   - a traceability label is added
+# Both show up as a real change in `terraform plan` when a release adopts
+# this rev.
 
 terraform {
   required_providers {
@@ -32,8 +36,14 @@ resource "docker_image" "app" {
 }
 
 resource "docker_container" "app" {
-  name  = var.container_name
-  image = docker_image.app.image_id
+  name    = var.container_name
+  image   = docker_image.app.image_id
+  restart = "unless-stopped" # new in module-v1.1.0
+
+  labels {
+    label = "fridgechef.module_rev"
+    value = "module-v1.1.0"
+  }
 
   ports {
     internal = 80
@@ -50,5 +60,5 @@ output "deployed_image" {
 }
 
 output "module_rev" {
-  value = "module-v1.0.0"
+  value = "module-v1.1.0"
 }
