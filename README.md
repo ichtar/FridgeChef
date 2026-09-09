@@ -1,19 +1,53 @@
 # Fridge Chef -- release repository
 
 The deployment contract between Fridge Chef (the vendor) and a customer
-tenant. No application code -- Terraform only:
-
-```
-main.tf              the release root. `terraform apply` here deploys one
-                     pinned image through one pinned module rev.
-modules/fridgechef/  the module the root consumes: a docker_image + a
-                     docker_container, and three outputs.
-```
+tenant. A **release** is a git tag and contains Terraform only: `main.tf`
+(the release root) and `modules/fridgechef/` (the module it consumes -- a
+`docker_image` + `docker_container` and three outputs).
 
 The customer clones this repo, checks out a release tag, and runs
 `terraform apply`. The vendor never connects in: the customer pulls the
 repo, the module (from git at a pinned commit), and the image (from Docker
 Hub at a pinned digest).
+
+## Repository layout
+
+```
+main.tf                the release root -- `terraform apply` here
+modules/fridgechef/    the module the root consumes
+docker/                how the deployed image is built (see below)
+architecture/          the enterprise design doc for this delivery model
+demo.md                a local, customer-side walkthrough: release + rollback
+```
+
+`docker/`, `architecture/` and `demo.md` live on `main` only. Checking out
+a release tag (`v0.1.0`, `v0.2.0`, ...) gives you just the Terraform --
+`main.tf`, `modules/`, `.gitignore`, `README.md`.
+
+### `docker/`
+
+Build context and tooling for `docker.io/ichtar/fridgechef-app`, the
+container the releases deploy:
+
+- `Dockerfile` + `index.html.template` -- an nginx page whose version
+  label and background colour are baked in at build time;
+- `Makefile` -- `make publish VERSION=v0.3.0 COLOR='#f59e0b' TEXT='...'`
+  builds `--provenance=false`, pushes the tag, and prints the
+  `@sha256:` digest to pin in `main.tf`;
+- `README.md` -- the colour palette and the digests the current releases
+  pin, with a reproducibility note.
+
+The demo images are already on Docker Hub; you only need `docker/` to cut
+a **new** image version.
+
+### `architecture/`
+
+"Fridge Chef goes Enterprise" -- the design doc behind this repo: why ECS
+over Kubernetes or image+VM, why git-based distribution over a cloud
+marketplace, product lifecycle, observability (push-mode Prometheus to a
+central single pane of glass), security, the scale limits of a two-person
+team, and a first-30-minutes support runbook. Section 8 embeds the
+architecture diagrams from `architecture/diagrams/`.
 
 ## Releases are git tags
 
@@ -40,8 +74,8 @@ is nothing else to select and no way to end up mismatched.
 
 ```hcl
 module "fridgechef" {
-  source    = "git::ssh://git@github.com/ichtar/FridgeChef.git//modules/fridgechef?ref=4db683a34dd1cf5d2a2d64559c0ec632676a454c"
-  image_ref = "docker.io/ichtar/fridgechef-app@sha256:e2f1fef6...<64 hex>"
+  source    = "git::ssh://git@github.com/ichtar/FridgeChef.git//modules/fridgechef?ref=<module commit SHA>"
+  image_ref = "docker.io/ichtar/fridgechef-app@sha256:<64 hex digest>"
   host_port = 8080
 }
 ```
