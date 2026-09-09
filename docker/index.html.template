@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fridge Chef -- {{VERSION}}</title>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: {{COLOR}};
+      color: #fff;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .card { text-align: center; padding: 2rem; }
+    .tag {
+      display: inline-block; padding: .3em .8em; border-radius: 999px;
+      background: rgba(255,255,255,.18); font-size: 1rem; letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    h1 { font-size: clamp(3rem, 12vw, 7rem); margin: .2em 0 0; }
+    p  { font-size: clamp(1rem, 4vw, 1.6rem); opacity: .92; margin: .4em 0 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="tag">Fridge Chef</span>
+    <h1>{{VERSION}}</h1>
+    <p>{{TEXT}}</p>
+  </div>
+</body>
+</html>
