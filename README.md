@@ -3,125 +3,76 @@
 The deployment contract between Fridge Chef (the vendor) and a customer
 tenant. A **release** is a git tag (`v0.1.0`, `v0.2.0`, ...): the customer
 clones this repo, checks out a release tag, and runs `terraform apply`.
-The vendor never connects in -- the customer pulls the repo, the module
-(from git at a pinned commit), and the image (from Docker Hub at a pinned
-digest).
+
+The vendor never connects in. Everything is pulled by the customer: this
+repo, the Terraform module (from git), and the container image (from
+Docker Hub).
 
 ## Repository structure
 
 ```
-main.tf                the release root -- `terraform apply` runs here
-modules/fridgechef/     the module the root consumes (docker_image + docker_container)
+main.tf                 the release root -- `terraform apply` runs here
+modules/fridgechef/     the module it consumes (docker_image + docker_container)
 docker/                 build context + Makefile for the deployed image
 architecture/           enterprise design doc + diagrams
-demo.md                 local walkthrough: deploy a release, upgrade, roll back
+demo.md                 walkthrough: deploy, upgrade, roll back
 ```
 
-Checking out a release tag gives you only the Terraform (`main.tf`,
-`modules/`, `.gitignore`, `README.md`). `docker/`, `architecture/` and
-`demo.md` are on `main` only -- they are how the repo is built and
-reasoned about, not part of what a release deploys.
+Checking out a release tag gives you only the Terraform. `docker/`,
+`architecture/` and `demo.md` are on `main` only -- they are how the repo
+is built and reasoned about, not part of what a release deploys. Each has
+its own README.
 
-- **`docker/`** -- builds `docker.io/ichtar/fridgechef-app`, the container
-  the releases run. `make publish VERSION=... COLOR=... TEXT=...` builds,
-  pushes, and prints the `@sha256:` digest to pin. Needed only to cut a
-  new image version; the current ones are already on Docker Hub.
-- **`architecture/`** -- the "Fridge Chef goes Enterprise" design doc for
-  this delivery model, with diagrams in `architecture/diagrams/`.
+## Using a release
 
-## Releases
+Needs a running Docker daemon, and outbound access to GitHub and Docker
+Hub.
 
-| Release tag | Image (digest-pinned) | Module (commit-pinned) | What changed |
-|-------------|-----------------------|------------------------|--------------|
+```bash
+git checkout v0.1.0
+terraform init      # fetches the module from git at its pinned commit
+terraform apply
+```
+
+Upgrade or roll back by checking out another release tag and repeating --
+`terraform init` again, because the module ref moved. See `demo.md`.
+
+## What a release pins
+
+| Release tag | Image | Module | What changed |
+|-------------|-------|--------|--------------|
 | `v0.1.0` | `fridgechef-app` v0.1.0 (blue) | `module-v1.0.0` | baseline |
 | `v0.2.0` | `fridgechef-app` v0.2.0 (green) | `module-v1.1.0` | container gains `restart = "unless-stopped"` and a `fridgechef.module_rev` label |
 
-A release tag points at a `main.tf` that names two things by **immutable
-hash**, never by a movable name:
+A release tag points at a `main.tf` naming both by **immutable hash**,
+never by a movable name:
 
-- the module -- `source = "...?ref=<40-hex commit SHA>"`, not `?ref=module-v1.0.0`;
-- the image -- `image_ref = "...@sha256:<64-hex>"`, not `:v0.1.0`.
+```hcl
+module "fridgechef" {
+  source    = "git::ssh://.../FridgeChef.git//modules/fridgechef?ref=<commit SHA>"
+  image_ref = "docker.io/ichtar/fridgechef-app@sha256:<digest>"
+}
+```
 
 So re-pointing a git tag or re-pushing an image tag cannot change what an
 already-cut release deploys.
 
-The module is tagged on its own (`module-v1.0.0`, `module-v1.1.0` on
-`modules/fridgechef/`), so image and module can advance independently --
-but a release tag freezes one specific pair. There is nothing else to
-choose and no way to end up mismatched.
-
-## The release root (`main.tf`)
-
-```hcl
-module "fridgechef" {
-  source    = "git::ssh://git@github.com/ichtar/FridgeChef.git//modules/fridgechef?ref=<module commit SHA>"
-  image_ref = "docker.io/ichtar/fridgechef-app@sha256:<64 hex digest>"
-  host_port = 8080
-}
-```
-
-`source` points back at this repo at a pinned commit, so `terraform init`
-fetches the module from git at that exact revision -- not from the working
-tree. When a release moves the ref, `terraform init` must run again to
-re-fetch.
-
-## The module (`modules/fridgechef/`)
-
-| Input | Default | Meaning |
-|-------|---------|---------|
-| `image_ref` | (required) | image to deploy, by digest (`...@sha256:...`) |
-| `host_port` | `8080` | published port, forwarded to container `:80` |
-| `container_name` | `fridgechef-app` | |
-
-| Output | Meaning |
-|--------|---------|
-| `url` | `http://localhost:<host_port>` |
-| `deployed_image` | the image reference deployed (digest) |
-| `module_rev` | the module rev in effect (`module-v1.0.0` / `module-v1.1.0`) |
-
-It creates a `docker_image` (pulled from Docker Hub by digest) and a
-`docker_container` publishing `:80`.
-
-## Consuming a release
-
-```bash
-git clone git@github.com:ichtar/FridgeChef.git
-cd FridgeChef
-
-git checkout v0.1.0
-terraform init          # fetches the module at its pinned commit
-terraform apply         # deploys image v0.1.0  -> blue page on :8080
-
-git checkout v0.2.0
-terraform init          # ref moved -> re-fetch the module
-terraform apply         # deploys image v0.2.0  -> green page
-
-git checkout v0.1.0     # rollback is the same move, an earlier tag
-terraform init
-terraform apply
-```
+The module is tagged separately (`module-v1.0.0`, `module-v1.1.0`), so
+image and module can advance independently -- but a release tag freezes
+one specific pair. There is nothing else to choose and no way to end up
+mismatched.
 
 ## Cutting a release (vendor)
 
-1. Build and push `docker.io/ichtar/fridgechef-app:<version>`; record its
-   digest (`docker inspect --format='{{index .RepoDigests 0}}' ...`).
+1. Build and push the image, and record its digest -- see `docker/`.
 2. If the module changed: commit `modules/fridgechef/`, tag
-   `module-v<x.y.z>`, and record the commit SHA (`git rev-parse HEAD`).
-3. Write `main.tf` with the module `?ref=<SHA>` and `image_ref` at
-   `@<digest>`; commit; tag the commit `v<version>`; push `main` with the
-   tags.
-
-## Requirements
-
-- Docker daemon running.
-- Outbound network: `docker.io/ichtar/fridgechef-app` (public) for the
-  image, `git@github.com:ichtar/FridgeChef.git` for the module fetch (a
-  read-only deploy key in production).
+   `module-vX.Y.Z`, record the commit SHA.
+3. Point `main.tf` at both hashes, commit, tag `vX.Y.Z`, push with tags.
 
 ## Scope
 
-A mechanism prototype. Not covered: image signature verification (trust
-here is by digest but the digest itself is not signed), a private registry
-with per-tenant pull grants (the image repo here is public Docker Hub), a
-managed container runtime (the module runs a local `docker_container`),
-and multi-tenant isolation.
+A mechanism prototype. Not covered: image signature verification (trust is
+by digest, but the digest itself is not signed), a private registry with
+per-tenant pull grants (this image repo is public Docker Hub), a managed
+container runtime (the module runs a local `docker_container`), and
+multi-tenant isolation.
