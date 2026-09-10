@@ -18,10 +18,9 @@ architecture/           enterprise design doc + diagrams
 demo.md                 walkthrough: deploy, upgrade, roll back
 ```
 
-Checking out a release tag gives you only the Terraform. `docker/`,
-`architecture/` and `demo.md` are on `main` only -- they are how the repo
-is built and reasoned about, not part of what a release deploys. Each has
-its own README.
+`docker/`, `architecture/` and `demo.md` are supporting material, not part
+of what a release deploys -- Terraform fetches only `modules/fridgechef/`
+from the pinned commit. Each has its own README.
 
 ## Using a release
 
