@@ -1,53 +1,32 @@
 # Fridge Chef -- release repository
 
 The deployment contract between Fridge Chef (the vendor) and a customer
-tenant. A **release** is a git tag and contains Terraform only: `main.tf`
-(the release root) and `modules/fridgechef/` (the module it consumes -- a
-`docker_image` + `docker_container` and three outputs).
+tenant. Each **release is a git tag**: the customer clones this repo,
+checks out a tag, and runs `terraform apply`. The vendor never connects
+in -- the customer pulls the repo, the module (from git at a pinned
+commit), and the image (from Docker Hub at a pinned digest).
 
-The customer clones this repo, checks out a release tag, and runs
-`terraform apply`. The vendor never connects in: the customer pulls the
-repo, the module (from git at a pinned commit), and the image (from Docker
-Hub at a pinned digest).
-
-## Repository layout
+## Repository structure
 
 ```
-main.tf                the release root -- `terraform apply` here
-modules/fridgechef/    the module the root consumes
-docker/                how the deployed image is built (see below)
-architecture/          the enterprise design doc for this delivery model
-demo.md                a local, customer-side walkthrough: release + rollback
+main.tf                the release root -- `terraform apply` runs here
+modules/fridgechef/     the module the root consumes (docker_image + docker_container)
+docker/                 build context + Makefile for the deployed image
+architecture/           enterprise design doc + diagrams
+demo.md                 local walkthrough: deploy a release, upgrade, roll back
 ```
 
-`docker/`, `architecture/` and `demo.md` live on `main` only. Checking out
-a release tag (`v0.1.0`, `v0.2.0`, ...) gives you just the Terraform --
-`main.tf`, `modules/`, `.gitignore`, `README.md`.
+A release **tag** contains only the Terraform (`main.tf`, `modules/`,
+`.gitignore`, `README.md`). `docker/`, `architecture/` and `demo.md` live
+on `main` only -- they are how the repo is built and reasoned about, not
+part of what a release deploys.
 
-### `docker/`
-
-Build context and tooling for `docker.io/ichtar/fridgechef-app`, the
-container the releases deploy:
-
-- `Dockerfile` + `index.html.template` -- an nginx page whose version
-  label and background colour are baked in at build time;
-- `Makefile` -- `make publish VERSION=v0.3.0 COLOR='#f59e0b' TEXT='...'`
-  builds `--provenance=false`, pushes the tag, and prints the
-  `@sha256:` digest to pin in `main.tf`;
-- `README.md` -- the colour palette and the digests the current releases
-  pin, with a reproducibility note.
-
-The demo images are already on Docker Hub; you only need `docker/` to cut
-a **new** image version.
-
-### `architecture/`
-
-"Fridge Chef goes Enterprise" -- the design doc behind this repo: why ECS
-over Kubernetes or image+VM, why git-based distribution over a cloud
-marketplace, product lifecycle, observability (push-mode Prometheus to a
-central single pane of glass), security, the scale limits of a two-person
-team, and a first-30-minutes support runbook. Section 8 embeds the
-architecture diagrams from `architecture/diagrams/`.
+- **`docker/`** -- builds `docker.io/ichtar/fridgechef-app`, the container
+  the releases run. `make publish VERSION=... COLOR=... TEXT=...` builds,
+  pushes, and prints the `@sha256:` digest to pin. Needed only to cut a
+  new image version; the current ones are already on Docker Hub.
+- **`architecture/`** -- the "Fridge Chef goes Enterprise" design doc for
+  this delivery model, with diagrams in `architecture/diagrams/`.
 
 ## Releases are git tags
 
@@ -135,8 +114,8 @@ terraform apply
 
 - Docker daemon running.
 - Outbound network: `docker.io/ichtar/fridgechef-app` (public) for the
-  image, `git@github.com:ichtar/FridgeChef.git` for the module fetch (a read-only deploy key in
-  production).
+  image, `git@github.com:ichtar/FridgeChef.git` for the module fetch (a
+  read-only deploy key in production).
 
 ## Scope
 
