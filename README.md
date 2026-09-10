@@ -1,10 +1,11 @@
 # Fridge Chef -- release repository
 
 The deployment contract between Fridge Chef (the vendor) and a customer
-tenant. Each **release is a git tag**: the customer clones this repo,
-checks out a tag, and runs `terraform apply`. The vendor never connects
-in -- the customer pulls the repo, the module (from git at a pinned
-commit), and the image (from Docker Hub at a pinned digest).
+tenant. A **release** is a git tag (`v0.1.0`, `v0.2.0`, ...): the customer
+clones this repo, checks out a release tag, and runs `terraform apply`.
+The vendor never connects in -- the customer pulls the repo, the module
+(from git at a pinned commit), and the image (from Docker Hub at a pinned
+digest).
 
 ## Repository structure
 
@@ -16,10 +17,10 @@ architecture/           enterprise design doc + diagrams
 demo.md                 local walkthrough: deploy a release, upgrade, roll back
 ```
 
-A release **tag** contains only the Terraform (`main.tf`, `modules/`,
-`.gitignore`, `README.md`). `docker/`, `architecture/` and `demo.md` live
-on `main` only -- they are how the repo is built and reasoned about, not
-part of what a release deploys.
+Checking out a release tag gives you only the Terraform (`main.tf`,
+`modules/`, `.gitignore`, `README.md`). `docker/`, `architecture/` and
+`demo.md` are on `main` only -- they are how the repo is built and
+reasoned about, not part of what a release deploys.
 
 - **`docker/`** -- builds `docker.io/ichtar/fridgechef-app`, the container
   the releases run. `make publish VERSION=... COLOR=... TEXT=...` builds,
@@ -28,26 +29,26 @@ part of what a release deploys.
 - **`architecture/`** -- the "Fridge Chef goes Enterprise" design doc for
   this delivery model, with diagrams in `architecture/diagrams/`.
 
-## Releases are git tags
+## Releases
 
-| Tag | Image (digest-pinned) | Module (commit-pinned) | What changed |
-|-----|-----------------------|------------------------|--------------|
+| Release tag | Image (digest-pinned) | Module (commit-pinned) | What changed |
+|-------------|-----------------------|------------------------|--------------|
 | `v0.1.0` | `fridgechef-app` v0.1.0 (blue) | `module-v1.0.0` | baseline |
 | `v0.2.0` | `fridgechef-app` v0.2.0 (green) | `module-v1.1.0` | container gains `restart = "unless-stopped"` and a `fridgechef.module_rev` label |
 
-Everything a release pins is an **immutable hash**, never a movable name:
+A release tag points at a `main.tf` that names two things by **immutable
+hash**, never by a movable name:
 
-- the module `source` ends in `?ref=<40-hex commit SHA>`, not `?ref=module-v1.0.0`;
-- `image_ref` is `docker.io/ichtar/fridgechef-app@sha256:<64-hex>`, not `:v0.1.0`.
+- the module -- `source = "...?ref=<40-hex commit SHA>"`, not `?ref=module-v1.0.0`;
+- the image -- `image_ref = "...@sha256:<64-hex>"`, not `:v0.1.0`.
 
-The tag names above are for humans reading this table. The repo pins the
-hash, so re-pointing a git tag or re-pushing an image tag cannot change
-what an already-cut release deploys.
+So re-pointing a git tag or re-pushing an image tag cannot change what an
+already-cut release deploys.
 
-`module-v1.0.0` / `module-v1.1.0` tag `modules/fridgechef/` on its own, so
-the image and the module can move independently -- but a release tag fixes
-the pair. Checking out `v0.1.0` yields a `main.tf` that names both; there
-is nothing else to select and no way to end up mismatched.
+The module is tagged on its own (`module-v1.0.0`, `module-v1.1.0` on
+`modules/fridgechef/`), so image and module can advance independently --
+but a release tag freezes one specific pair. There is nothing else to
+choose and no way to end up mismatched.
 
 ## The release root (`main.tf`)
 
