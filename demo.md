@@ -1,6 +1,10 @@
 # Fridge Chef -- live demo
 
-Customer side only. Run the commands top to bottom.
+This demo showcase the delivery mechanism between FridgChef and a customer in an isolated tenant.
+App docker images are in a docker registry to simulate an ECR in FrideChef tenant.
+FridgeChef repo is to be cloned by customer, it contains terraform that will pull image from registry,
+terraform module from the very same repo, and deploy a simplistic webpage to illustrate how to switch
+between application versions.
 
 ## Setup
 
